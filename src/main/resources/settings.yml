@@ -1,0 +1,24 @@
+MojangAPI:
+  proxies: |-
+    201.182.241.98:9991:http
+    181.196.205.250:54024:http
+    186.42.124.130:65301:http
+Authentication:
+  timeOut: 30
+  serverNameAuth: prelobby
+  serverLobby: lobby
+CommandsAllowedNoAuthenticate: |-
+  /login
+  /register
+UserPremium:
+  timeOutConfirmInSeconds: 15
+  timeOutJoinPremiumInMinutes: 8
+mongodb:
+  host: 'localhost'
+  databaseName: 'minecubAccounts'
+  prefixCollections: 'minecub_'
+  username: 'root'
+  port: 27017
+  password: ''
+PasswordSettings:
+  minChar: 5

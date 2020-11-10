@@ -1,0 +1,52 @@
+MojangAPI:
+  kickPlayer:
+    rateLimit: '&cRate limit in mojang, try again more later'
+    errorUnexpected: '&cError Unexpected, try again login'
+OnLogin:
+  PremiumVerified: '&cTHE PREMIUM SESSION OF YOUR ACCOUNT HAS BEEN VERIFIED'
+  LoginSuccessful: '&6Login Successful'
+  LoginPasswordSuccessful: '&aLogin Successfull'
+  loginWelcome: '&cPlease authenticate to continue'
+  registerWelcome: '&cPlease sign up to continue'
+  timeOut: '&eAuthentication timeout expired'
+  passwordFail: '&cLogin failed, password incorrect'
+  SignupSuccessful: '&aSign up successfull'
+Password:
+  minChar: '&cThe password must be greater than or equal to 5 characters'
+Commands:
+  login: '&aSign in with /login [password]'
+  register: '&cSign up with /register [password] [repeat-password]'
+  loginUsage: '&cArguments: &f/login [password]'
+  adminUsage: '&cArguments: &e/authadmin &areload&f|&achangepass'
+  adminUsageChangepass: '&cArguments: /authadmin changepass [usuario] [clave]'
+  registerUsage: '&cArguments: &e/register [password] [repeat-password]'
+  premiumUsage: '&cArguments: &e/premium login (enable/disable)'
+  playerChangepasswordUsage: '&cArguments: /changepassword [old-pass] [new-pass]'
+  adminpasswordUpdated: '&aPassword updated for user: {player}'
+  adminUserNoExist: '&cThe user {player} doesnt exist in database'
+  passwordNoMatch: '&cPasswords do not match, try again'
+  noPremiumUser: '&cIn order to use this command you need a premium account from &eminecraft.net'
+  changepasswordSamePassword: '&cYour passwors is equals to old, please type a new password'
+  ChangepasswordSuccessful: '&eYour password is successful updated'
+  ChangepasswordPasswordError: '&cYour password is incorrect, please try again'
+Premium:
+  alertEnable: |-
+    &c&lALERT!:
+    &cBy using this command you are changing the login status of your account
+    &cIf you do not have access to your premium account from an official launcher, you will not be able to access the network
+    &cType /premium login yes &2to confirm activation &6(the command expires in {time} seconds)
+  alertDisable: |-
+    &c&lALERT!:
+    &eBy using this command you are changing the login status of your account
+    &eYour account be cracked
+    &eType /premium login yes &2to confirm activation &6(the command expires in {time} seconds)
+  yesEnablePremium: |-
+    &2&lYOU HAVE BEEN ENABLED PREMIUM LOGIN ACCOUNT
+    &a
+    &aTo verify your premium account
+    &ayou must log in with an official launcher and enter the network
+    &aif we detect that you have not logged in with a premium account in &f{time} minute(s)
+    &ayour account will return to the login status by password
+  yesDisablePremium: |-
+    &a&lYou have been disable premium login account
+    &aYour next login into the server is with password

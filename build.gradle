@@ -1,0 +1,59 @@
+plugins {
+    id 'java'
+    id "com.github.johnrengelman.shadow" version "5.2.0"
+}
+
+compileJava {
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
+}
+archivesBaseName = 'LoginCub'
+version 'RELEASE'
+group 'me.metrofico'
+configurations {
+    testCompile.extendsFrom compileOnly
+}
+
+
+repositories {
+    flatDir {
+        dirs 'libs'
+    }
+    mavenLocal()
+    mavenCentral()
+    maven {
+        url = 'https://repo.aikar.co/content/groups/aikar/'
+    }
+    maven {
+        url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots'
+    }
+    maven {
+        url = 'https://hub.spigotmc.org/nexus/content/groups/public/'
+    }
+    maven {
+        url = 'https://oss.sonatype.org/content/groups/public/'
+    }
+
+}
+
+shadowJar {
+    relocate 'com.mongodb', 'me.metrofico.logincub.shadow.com.mongodb'
+    relocate 'redis.clients', 'me.metrofico.logincub.shadow.redis.clients'
+    relocate 'org', 'me.metrofico.logincub.shadow.org'
+    relocate 'okhttp3', 'me.metrofico.logincub.shadow.okhttp3'
+    relocate 'okio', 'me.metrofico.logincub.shadow.okio'
+    relocate 'kotlin', 'me.metrofico.logincub.shadow.kotlin'
+}
+
+tasks.withType(JavaCompile) {
+    options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
+    options.encoding = "UTF-8"
+}
+dependencies {
+    compileOnly(name: 'BungeeCord', ext: 'jar')
+    implementation group: 'redis.clients', name: 'jedis', version: '3.3.0'
+    implementation("com.squareup.okhttp3:okhttp:4.9.0")
+    compile group: 'org.mongodb', name: 'mongo-java-driver', version: '3.12.7'
+    testImplementation group: 'junit', name: 'junit', version: '4.12'
+}
+tasks.build.dependsOn tasks.shadowJar

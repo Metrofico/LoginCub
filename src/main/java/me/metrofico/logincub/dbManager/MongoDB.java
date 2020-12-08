@@ -10,10 +10,11 @@ public class MongoDB {
     private final MongoDatabase database;
     private final String prefix_collection;
 
-    public MongoDB(String databaseName, String prefix_collection, String host, int port, String username, String password) throws Exception {
+    public MongoDB(String databaseName, String authSource, String prefix_collection, String host, int port, String username, String password) throws Exception {
         this.prefix_collection = prefix_collection;
         ConsoleUtil.Console("Inicializando Mongodb");
-        MongoCredential mongoCredential = MongoCredential.createCredential(username, databaseName,
+        MongoCredential mongoCredential = MongoCredential.createCredential(username,
+                authSource != null ? authSource : databaseName,
                 password.toCharArray());
         client = new MongoClient(new ServerAddress(host, port), mongoCredential,
                 new MongoClientOptions.Builder().connectTimeout(360000)

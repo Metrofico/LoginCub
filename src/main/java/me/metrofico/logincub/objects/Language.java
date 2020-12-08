@@ -24,8 +24,8 @@ public class Language {
     private String passwordMin;
 
     public Language() {
-        rateLimit = "&cRate Limit from Mojang, re-try";
-        errorLogin = "&cError Unexpected, re-try login";
+        rateLimit = "§cRate Limit from Mojang, re-try";
+        errorLogin = "§cError inesperado, intenta reloguear";
     }
 
     public void setChangepasswordPasswordError(String changepasswordPasswordError) {

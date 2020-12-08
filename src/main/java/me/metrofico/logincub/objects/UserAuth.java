@@ -6,6 +6,7 @@ import me.metrofico.logincub.MojangAPI;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.chat.BaseComponent;
+import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
@@ -22,50 +23,29 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-public class UserAuth {
-    private static final ConcurrentHashMap<UUID, UserAuth> usersAuth = new ConcurrentHashMap<>();
+public class UserAuth implements Cloneable {
+    private static final ConcurrentHashMap<String, UserAuth> usersAuth = new ConcurrentHashMap<>();
+    private final String objectId;
+    private UUID offlineUuid;
+    private UUID onlineUuid;
+    private MojangAPI.Account status;
 
-    public static void addUser(UserAuth auth) {
-        usersAuth.putIfAbsent(auth.getUuid(), auth);
-    }
-
-    public static void updateUser(UserAuth auth) {
-        usersAuth.put(auth.getUuid(), auth);
-    }
-
-    public static UserAuth getUser(UUID id) {
-        return usersAuth.getOrDefault(id, null);
-    }
-
-    public static void removeUser(UUID id) {
-        usersAuth.remove(id);
-    }
 
     public static Iterator<UserAuth> getUsers() {
         return usersAuth.values().iterator();
     }
 
-    public static Iterator<UserAuth> getUsersNotLogged() {
-        return usersAuth.values().stream().filter(user -> !user.isLogged() && user.isPlayerOnline() && !user.isLoginPremium()).collect(Collectors.toList()).iterator();
-    }
+    private boolean authDownloading;
 
 
     private final String userName;
     private final UUID uuid;
-    private final MojangAPI.Account status;
-    private String objectId;
-    private boolean loginPremium;
-    private ProxiedPlayer player;
-    private String passwordHashed;
-    private boolean isLogged, wait;
-    private ServerInfo targetServer;
-    private long timeOnFinishOut;
-    private long timeOnFinishOutPremiumEnabled;
-    private long timeOnFinishJoinPremium;
 
-    public UserAuth(String userName, UUID uuid, MojangAPI.Account status, String objectId) {
-        this.userName = userName;
+    public UserAuth(String userName, UUID uuid, UUID offlineUuid, UUID onlineUuid, MojangAPI.Account status, String objectId) {
         this.uuid = uuid;
+        this.userName = userName;
+        this.offlineUuid = offlineUuid;
+        this.onlineUuid = onlineUuid;
         this.status = status;
         this.loginPremium = false;
         wait = false;
@@ -76,10 +56,73 @@ public class UserAuth {
         timeOnFinishOutPremiumEnabled = 0;
         timeOnFinishJoinPremium = 0;
         this.objectId = objectId;
+        authDownloading = false;
     }
 
-    public void setObjectId(String objectId) {
-        this.objectId = objectId;
+    public static void addUser(UserAuth auth) {
+        usersAuth.putIfAbsent(auth.getUserName(), auth);
+    }
+
+    public static void updateUser(String playerName, UserAuth auth) {
+        usersAuth.put(playerName, auth);
+    }
+
+    public static UserAuth getUser(String playerName) {
+        return usersAuth.getOrDefault(playerName, null);
+    }
+
+    private boolean loginPremium;
+    private String passwordHashed;
+    private boolean isLogged, wait;
+    private ServerInfo targetServer;
+    private long timeOnFinishOut;
+    private long timeOnFinishOutPremiumEnabled;
+    private long timeOnFinishJoinPremium;
+
+    public static void removeUser(String playerName) {
+        usersAuth.remove(playerName);
+    }
+
+    public static Iterator<UserAuth> getUsersNotLogged() {
+        ConcurrentHashMap<String, UserAuth> clone = new ConcurrentHashMap<>(usersAuth);
+        return clone.values().stream().filter(user -> !user.isLogged() && user.isPlayerOnline() && !user.isLoginPremium()).collect(Collectors.toList()).iterator();
+    }
+
+    public UUID getOfflineUuid() {
+        return offlineUuid;
+    }
+
+    public void setOfflineUuid(UUID uuid) {
+        this.offlineUuid = uuid;
+    }
+
+    public UUID getOnlineUuid() {
+        return onlineUuid;
+    }
+
+    public void setOnlineUuid(UUID uuid) {
+        this.onlineUuid = uuid;
+    }
+
+    public UserAuth clone() {
+        try {
+            return (UserAuth) super.clone();
+        } catch (CloneNotSupportedException w) {
+            w.printStackTrace();
+        }
+        return null;
+    }
+
+    public boolean isAuthDownloading() {
+        return authDownloading;
+    }
+
+    public void setAuthDownloading(boolean authDownloading) {
+        this.authDownloading = authDownloading;
+    }
+
+    public void setStatus(MojangAPI.Account status) {
+        this.status = status;
     }
 
     public String getObjectId() {
@@ -120,7 +163,7 @@ public class UserAuth {
         timeOnFinishJoinPremium = tmfn.getTime();
     }
 
-    public boolean isTimeOnFinishJoinPremium() {
+    public boolean isFinishedPremiumValidate() {
         if (timeOnFinishJoinPremium == 0) {
             return true;
         }
@@ -284,13 +327,14 @@ public class UserAuth {
     }
 
     public void setLoginPremium(boolean loginPremium) {
-        if (loginPremium) {
-            setLogged(true);
-        }
         this.loginPremium = loginPremium;
     }
 
-    public void redirectToTarget() {
-        //getPlayer().connect(getTargetServer());
+
+    public void kick(String s) {
+        ProxiedPlayer player = getPlayer();
+        if (player != null) {
+            player.disconnect(new ComponentBuilder(ChatColor.translateAlternateColorCodes('&', s)).create());
+        }
     }
 }

@@ -1,14 +1,14 @@
 package me.metrofico.logincub.commands;
 
-import net.md_5.bungee.api.CommandSender;
-import net.md_5.bungee.api.connection.ProxiedPlayer;
-import net.md_5.bungee.api.plugin.Command;
 import me.metrofico.logincub.Cryptography;
 import me.metrofico.logincub.Init;
 import me.metrofico.logincub.objects.UserAuth;
+import net.md_5.bungee.api.CommandSender;
+import net.md_5.bungee.api.connection.ProxiedPlayer;
+import net.md_5.bungee.api.plugin.Command;
 
 public class ChangePasswordCommand extends Command {
-    private Init plugin;
+    private final Init plugin;
 
     public ChangePasswordCommand(Init plugin, String name) {
         super(name, null);
@@ -19,7 +19,7 @@ public class ChangePasswordCommand extends Command {
     public void execute(CommandSender commandSender, String[] strings) {
         if (commandSender instanceof ProxiedPlayer) {
             ProxiedPlayer player = (ProxiedPlayer) commandSender;
-            UserAuth userAuth = UserAuth.getUser(player.getUniqueId());
+            UserAuth userAuth = UserAuth.getUser(player.getName());
             if (userAuth.isLogged()) {
                 if (userAuth.getPasswordHashed() != null) {
                     if (!userAuth.isLoginPremium()) {

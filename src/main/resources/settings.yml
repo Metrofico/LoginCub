@@ -20,5 +20,6 @@ mongodb:
   username: 'root'
   port: 27017
   password: ''
+  authSource: 'admin'
 PasswordSettings:
   minChar: 5

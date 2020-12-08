@@ -1,17 +1,24 @@
 package me.metrofico.logincub.commands;
 
+import me.metrofico.logincub.Init;
+import me.metrofico.logincub.MojangAPI;
+import me.metrofico.logincub.Utils;
+import me.metrofico.logincub.objects.UserAuth;
 import net.md_5.bungee.api.CommandSender;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Command;
-import me.metrofico.logincub.Init;
-import me.metrofico.logincub.MojangAPI;
-import me.metrofico.logincub.objects.UserAuth;
+
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class PremiumCommand extends Command {
-    private Init plugin;
+    private final Init plugin;
+    private final ExecutorService service;
 
     public PremiumCommand(Init plugin, String name) {
         super(name, null);
+        service = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
         this.plugin = plugin;
     }
 
@@ -19,10 +26,46 @@ public class PremiumCommand extends Command {
     public void execute(CommandSender commandSender, String[] strings) {
         if (commandSender instanceof ProxiedPlayer) {
             ProxiedPlayer player = (ProxiedPlayer) commandSender;
-            UserAuth userAuth = UserAuth.getUser(player.getUniqueId());
+            UserAuth userAuth = UserAuth.getUser(player.getName());
             if (userAuth.isLogged()) {
                 if (userAuth.getStatus() != MojangAPI.Account.PREMIUM) {
-                    userAuth.sendMessage(plugin.getLanguage().getNopremiumPlayer());
+                    if (userAuth.isAuthDownloading()) {
+                        commandSender.sendMessage(Utils.chatColor("&cEstamos verificando tu cuenta espera un momento..."));
+                        return;
+                    }
+                    commandSender.sendMessage(Utils.chatColor("&aVálidando tu cuenta por favor espera..."));
+                    userAuth.setAuthDownloading(true);
+                    service.submit(() -> {
+                        try {
+                            MojangAPI.FetchAccount account = plugin.getMojangAPI().fetchUUID(player.getName());
+                            userAuth.setAuthDownloading(false);
+                            if (account.getStatus() == MojangAPI.Account.RATE_LIMIT) {
+                                commandSender.sendMessage(Utils.chatColor("&cNo podemos contactarnos con los servidores, intenta nuevamente más tarde!"));
+                                return;
+                            }
+                            if (account.getStatus() == MojangAPI.Account.ERROR) {
+                                commandSender.sendMessage(Utils.chatColor("&cNo podemos contactarnos con los servidores, intenta nuevamente más tarde!"));
+                                return;
+                            }
+                            UUID uuid = account.getUuid();
+                            //cambio de uuid dependiendo del usuario //CRACKED (No premium por defecto)
+                            if (account.getStatus() != MojangAPI.Account.PREMIUM) {
+                                userAuth.sendMessage(plugin.getLanguage().getNopremiumPlayer());
+                                return;
+                            }
+                            if (uuid == null) {
+                                commandSender.sendMessage(Utils.chatColor("&cNo se puede obtener la información de identificación de mojang, contacta con un administrador!"));
+                                return;
+                            }
+                            userAuth.setStatus(MojangAPI.Account.PREMIUM);
+                            plugin.getPlayerDatabase().updateOnlineUuid(player.getName(), uuid.toString(), true);
+                            UserAuth.removeUser(player.getName());
+                            player.disconnect(Utils.chatColor("&6Hemos válidado la información de tu cuenta premium \n&6Ingresa a la network y escribe &b/premium login enable \n&6Para solicitar activar la cuenta premium"));
+                        } catch (Throwable w) {
+                            commandSender.sendMessage(Utils.chatColor("&cNo se pudo válidar tu cuenta premium por un error desconocido"));
+                            w.printStackTrace();
+                        }
+                    });
                     return;
                 }
                 if (strings.length < 2) {
@@ -30,7 +73,7 @@ public class PremiumCommand extends Command {
                     return;
                 }
                 String parametro = strings[0];
-                if ("login".equals(parametro.toLowerCase())) {
+                if ("login".equalsIgnoreCase(parametro)) {
                     String enableDisable = strings[1];
                     switch (enableDisable.toLowerCase()) {
                         case "enable": {
@@ -59,12 +102,11 @@ public class PremiumCommand extends Command {
                             }
                             if (userAuth.isLoginPremium()) {
                                 userAuth.sendMessage(plugin.getLanguage().getYesDisablePremium());
-                                plugin.getPlayerDatabase().updatePremiumMode(userAuth.getUuid(), false);
+                                plugin.getPlayerDatabase().updatePremiumMode(player.getName(), userAuth.getUuid(), false);
                                 return;
                             }
                             userAuth.sendMessage(plugin.getLanguage().getYesEnablePremium(), "{time}", "" + plugin.getObjectSettings().getTimeOutJoinPremium());
                             userAuth.setTimeoutJoinPremium(plugin.getObjectSettings().getTimeOutJoinPremium());
-
                             break;
                         }
                     }

@@ -65,7 +65,7 @@ public class Init extends Plugin {
         try {
             MongoDB database;
             if (!databaseConfiguration.getPassword().isEmpty()) {
-                database = new MongoDB(databaseConfiguration.getDatabase(), databaseConfiguration.getPrefixCollection(), databaseConfiguration.getHost(),
+                database = new MongoDB(databaseConfiguration.getDatabase(), databaseConfiguration.getAuthSource(), databaseConfiguration.getPrefixCollection(), databaseConfiguration.getHost(),
                         databaseConfiguration.getPort(), databaseConfiguration.getUsername(),
                         databaseConfiguration.getPassword());
             } else {
@@ -88,8 +88,10 @@ public class Init extends Plugin {
         String prefix = file.getString("mongodb.prefixCollections", "db_prefix_");
         String username = file.getString("mongodb.username", "");
         String password = file.getString("mongodb.password", "");
+        String authSource = file.getString("mongodb.authSource", null);
         int port = file.getInt("mongodb.port", 27017);
         databaseConfiguration.setHost(host.trim());
+        databaseConfiguration.setAuthSource(authSource);
         databaseConfiguration.setDatabase(database.trim());
         databaseConfiguration.setUsername(username.trim());
         databaseConfiguration.setPrefixCollection(prefix.trim());
@@ -232,7 +234,7 @@ public class Init extends Plugin {
     }
 
     public boolean matchCommandAllowed(String command) {
-        return commandsAllowed.stream().filter(sc -> sc.trim().toLowerCase().equals(command.toLowerCase())).count() >= 1;
+        return commandsAllowed.stream().filter(sc -> sc.trim().equalsIgnoreCase(command)).count() >= 1;
     }
 
     private void registerCommands() {

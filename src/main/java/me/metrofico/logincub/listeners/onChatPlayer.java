@@ -1,16 +1,16 @@
 package me.metrofico.logincub.listeners;
 
+import me.metrofico.logincub.Init;
+import me.metrofico.logincub.objects.UserAuth;
 import net.md_5.bungee.api.connection.Connection;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.event.ChatEvent;
 import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.event.EventHandler;
 import net.md_5.bungee.event.EventPriority;
-import me.metrofico.logincub.Init;
-import me.metrofico.logincub.objects.UserAuth;
 
 public class onChatPlayer implements Listener {
-    private Init plugin;
+    private final Init plugin;
 
     public onChatPlayer(Init plugin) {
         this.plugin = plugin;
@@ -22,7 +22,7 @@ public class onChatPlayer implements Listener {
         Connection connection = event.getSender();
         if (connection instanceof ProxiedPlayer) {
             ProxiedPlayer player = (ProxiedPlayer) connection;
-            UserAuth userAuth = UserAuth.getUser(player.getUniqueId());
+            UserAuth userAuth = UserAuth.getUser(player.getName());
             if (userAuth != null) {
                 if (!userAuth.isLogged()) {
                     String message = event.getMessage().trim();

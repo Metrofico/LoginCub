@@ -6,7 +6,16 @@ public class DatabaseConfiguration {
     String database;
     String password;
     String prefixCollections;
+    String authSource;
     int port;
+
+    public String getAuthSource() {
+        return authSource;
+    }
+
+    public void setAuthSource(String authSource) {
+        this.authSource = authSource;
+    }
 
     public String getHost() {
         return host;

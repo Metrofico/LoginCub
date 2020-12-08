@@ -5,7 +5,7 @@ import me.metrofico.logincub.Cryptography;
 import me.metrofico.logincub.Init;
 import me.metrofico.logincub.MojangAPI;
 import me.metrofico.logincub.Utils;
-import me.metrofico.logincub.callbacks.ReturnCallback;
+import me.metrofico.logincub.callbacks.SingleCallback;
 import me.metrofico.logincub.eventos.PlayerCrackedLogged;
 import me.metrofico.logincub.objects.UserAuth;
 import net.md_5.bungee.BungeeCord;
@@ -13,6 +13,7 @@ import net.md_5.bungee.api.CommandSender;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Command;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 
 import java.util.UUID;
 
@@ -29,7 +30,7 @@ public class RegisterCommand extends Command {
     public void execute(CommandSender commandSender, String[] strings) {
         if (commandSender instanceof ProxiedPlayer) {
             ProxiedPlayer player = (ProxiedPlayer) commandSender;
-            UserAuth userAuth = UserAuth.getUser(player.getUniqueId());
+            UserAuth userAuth = UserAuth.getUser(player.getName());
             if (!userAuth.isLogged()) {
                 if (userAuth.getPasswordHashed() == null) {
                     if (strings.length < 2) {
@@ -53,9 +54,10 @@ public class RegisterCommand extends Command {
                     userAuth.setPasswordHashed(Cryptography.sha512(password));
                     if (userAuth.getStatus() == MojangAPI.Account.PREMIUM) {
                         userAuth.setWait(true);
-                        plugin.getPlayerDatabase().saveOnlinePlayer(userAuth.getUserName(), userAuth.getUuid(), password, callSuccess(userAuth));
+                        plugin.getPlayerDatabase().saveOnlinePlayer(userAuth.getObjectId(), userAuth.getUserName(), userAuth.getUuid(), password,
+                                callSuccess(userAuth));
                     } else {
-                        plugin.getPlayerDatabase().saveOfflinePlayer(userAuth.getUserName(), userAuth.getUuid(),
+                        plugin.getPlayerDatabase().saveOfflinePlayer(userAuth.getObjectId(), userAuth.getUserName(), userAuth.getUuid(),
                                 password, callSuccess(userAuth));
                     }
                 }
@@ -77,20 +79,18 @@ public class RegisterCommand extends Command {
                 return;
             }
             UUID uuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(Charsets.UTF_8));
-            plugin.getPlayerDatabase().saveOfflinePlayer(username, uuid, password, null);
+            plugin.getPlayerDatabase().saveOfflinePlayer(new ObjectId().toHexString(), username, uuid, password, null);
             commandSender.sendMessage(Utils.chatColor("&aHas creado el usuario correctamente!"));
         }
     }
 
-    public ReturnCallback<String> callSuccess(UserAuth userAuth) {
+    public SingleCallback callSuccess(UserAuth userAuth) {
         userAuth.setWait(true);
-        return new ReturnCallback<String>() {
+        return new SingleCallback() {
             @Override
-            public void onSuccess(String object) {
-                userAuth.setObjectId(object);
+            public void onSuccess() {
                 userAuth.setLogged(true);
                 userAuth.sendMessage(plugin.getLanguage().getSignupSuccessful());
-                userAuth.redirectToTarget();
                 ProxiedPlayer proxiedPlayer = userAuth.getPlayer();
                 if (proxiedPlayer != null) {
                     PlayerCrackedLogged logged = new PlayerCrackedLogged(userAuth, proxiedPlayer, true);
@@ -102,6 +102,7 @@ public class RegisterCommand extends Command {
 
             @Override
             public void onError(Throwable throwable) {
+                userAuth.kick("&cHa ocurrido un error [0x0002] contacta con un administrador");
                 userAuth.sendMessage("Ha ocurrido un error mientras se registraba tu cuenta");
                 userAuth.setWait(false);
             }

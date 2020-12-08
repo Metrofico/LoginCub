@@ -7,7 +7,7 @@ import java.util.Iterator;
 
 public class AuthCheck implements Runnable {
 
-    private Init plugin;
+    private final Init plugin;
 
     public AuthCheck(Init plugin) {
         this.plugin = plugin;
@@ -20,6 +20,7 @@ public class AuthCheck implements Runnable {
             UserAuth user = userIterator.next();
             if (user.timeOut()) {
                 user.disconnect(plugin.getLanguage().getTimeOut());
+                UserAuth.removeUser(user.getUserName());
                 continue;
             }
             if (user.getPasswordHashed() == null) {

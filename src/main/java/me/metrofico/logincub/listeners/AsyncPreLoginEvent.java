@@ -12,6 +12,7 @@ import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.connection.PendingConnection;
 import net.md_5.bungee.api.event.PreLoginEvent;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 
 import java.util.UUID;
 
@@ -43,11 +44,30 @@ public class AsyncPreLoginEvent implements Runnable {
             if (playerByUsername != null) {
                 String _id = playerByUsername.getObjectId("_id").toHexString();
                 boolean loginPremium = playerByUsername.getBoolean("loginPremium", false);
+                boolean updateInGame = playerByUsername.getBoolean("updateInGame", false);
+                String savedPlayerName = (String) playerByUsername.getOrDefault("playerName", null);
+                if (savedPlayerName == null) {
+                    dispatchCancelUser("&cTu usuario está registrada erroneamente donde no se ha encontrado tu usuario registrado," +
+                            " contacta con un administrador");
+                    return;
+                }
+                /*if (!loginPremium) {
+                    if (!username.equals(savedPlayerName)) {
+                        dispatchCancelUser("&cHas entrado con un usuario diferente a &6" + savedPlayerName);
+                        return;
+                    }
+                }*/
                 String password = playerByUsername.containsKey("password") ? playerByUsername.getString("password") : null;
                 MojangAPI.Account status;
                 String uuid;
+                UUID onlineUuid = BungeeUUID.getUUIDfromString(playerByUsername.getString("onlineUid"));
+                UUID offlineUuid = BungeeUUID.getUUIDfromString(playerByUsername.getString("offlineUid"));
                 if (playerByUsername.containsKey("onlineUid")) {
-                    uuid = playerByUsername.getString("onlineUid");
+                    if (updateInGame) {
+                        uuid = playerByUsername.getString("offlineUid");
+                    } else {
+                        uuid = playerByUsername.getString("onlineUid");
+                    }
                     status = MojangAPI.Account.PREMIUM;
                 } else {
                     uuid = playerByUsername.getString("offlineUid");
@@ -56,11 +76,11 @@ public class AsyncPreLoginEvent implements Runnable {
                 UUID uidParser = BungeeUUID.getUUIDfromString(uuid);
                 //Usuario con login premium activado/desactivado
                 user_pending.setUniqueId(uidParser);
-                UserAuth userAuth = UserAuth.getUser(uidParser);
+                UserAuth userAuth = UserAuth.getUser(username);
                 if (userAuth == null) {
-                    userAuth = new UserAuth(username, uidParser, status, _id);
+                    userAuth = new UserAuth(username, uidParser, offlineUuid, onlineUuid, status, _id);
                 }
-                if (!userAuth.isTimeOnFinishJoinPremium()) {
+                if (!userAuth.isFinishedPremiumValidate()) {
                     loginPremium = true;
                 }
                 if (!loginPremium) {
@@ -70,7 +90,7 @@ public class AsyncPreLoginEvent implements Runnable {
                 userAuth.setLogged(false);
                 userAuth.setLoginPremium(loginPremium);
                 userAuth.setPasswordHashed(password);
-                UserAuth.updateUser(userAuth);
+                UserAuth.updateUser(user_pending.getName(), userAuth);
                 PlayerAuthentication playerAuthentication = new PlayerAuthentication(userAuth,
                         user_pending, false); // se ejecuta sincrono
                 BungeeCord.getInstance().getPluginManager().callEvent(playerAuthentication);
@@ -98,9 +118,11 @@ public class AsyncPreLoginEvent implements Runnable {
                 return;
             }
             UUID uuid = account.getUuid();
+            UUID onlineUuid = uuid;
+            UUID offlineUuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(Charsets.UTF_8));
             //cambio de uuid dependiendo del usuario //CRACKED (No premium por defecto)
             if (account.getStatus() != MojangAPI.Account.PREMIUM) {
-                uuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(Charsets.UTF_8));
+                uuid = offlineUuid;
             }
             //Verificar si el usuario esta en la base de datos
             if (uuid == null) {
@@ -109,8 +131,12 @@ public class AsyncPreLoginEvent implements Runnable {
             }
             Document player = plugin.getPlayerDatabase().getPlayer(uuid);
             if (player != null) {
-                String uid = player.getObjectId("_id").toString();
+                String uid = player.getObjectId("_id").toHexString();
                 boolean loginPremium = player.getBoolean("loginPremium", false);
+                boolean updateInGame = player.getBoolean("updateInGame", false);
+                if (updateInGame) {
+                    uuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(Charsets.UTF_8));
+                }
                 String password = player.containsKey("password") ? player.getString("password") : null;
                 //POSIBLE cambio de username
                 String usernameFromDatabase = player.getString("playerName");
@@ -118,22 +144,22 @@ public class AsyncPreLoginEvent implements Runnable {
                     plugin.getPlayerDatabase().updatePlayerNameFromUUID(uuid, username);
                 }
                 //Usuario con login premium activado/desactivado
-                user_pending.setUniqueId(uuid);
-                UserAuth userAuth = UserAuth.getUser(uuid);
+                UserAuth userAuth = UserAuth.getUser(user_pending.getName());
                 if (userAuth == null) {
-                    userAuth = new UserAuth(username, uuid, account.getStatus(), uid);
+                    userAuth = new UserAuth(username, uuid, uuid, onlineUuid, account.getStatus(), uid);
                 }
-                if (userAuth.isTimeOnFinishJoinPremium()) {
+                if (userAuth.isFinishedPremiumValidate()) {
                     loginPremium = true;
                 }
                 if (!loginPremium) {
                     userAuth.setTimeOut(plugin.getObjectSettings().getTimeOutAuth());
                 }
                 user_pending.setOnlineMode(loginPremium);
+                user_pending.setUniqueId(uuid);
                 userAuth.setLogged(false);
                 userAuth.setLoginPremium(loginPremium);
                 userAuth.setPasswordHashed(password);
-                UserAuth.updateUser(userAuth);
+                UserAuth.updateUser(user_pending.getName(), userAuth);
                 PlayerAuthentication playerAuthentication = new PlayerAuthentication(userAuth, user_pending, false); // se ejecuta sincrono
                 BungeeCord.getInstance().getPluginManager().callEvent(playerAuthentication);
                 String kickReason = playerAuthentication.getKickReason();
@@ -147,9 +173,10 @@ public class AsyncPreLoginEvent implements Runnable {
             //no existe
             user_pending.setUniqueId(uuid);
             user_pending.setOnlineMode(false);
-            UserAuth user = new UserAuth(username, uuid, account.getStatus(), null);
+            UserAuth user = new UserAuth(username, uuid, offlineUuid, onlineUuid, account.getStatus(), new ObjectId().toHexString());
             user.setTimeOut(plugin.getObjectSettings().getTimeOutAuth());
-            UserAuth.updateUser(user);
+            user.setLogged(false);
+            UserAuth.updateUser(user_pending.getName(), user);
             PlayerAuthentication playerAuthentication = new PlayerAuthentication(user, user_pending, true); // se ejecuta sincrono
             BungeeCord.getInstance().getPluginManager().callEvent(playerAuthentication);
             String kickReason = playerAuthentication.getKickReason();

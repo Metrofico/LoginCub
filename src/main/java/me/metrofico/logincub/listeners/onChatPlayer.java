@@ -1,7 +1,8 @@
 package me.metrofico.logincub.listeners;
 
 import me.metrofico.logincub.Init;
-import me.metrofico.logincub.objects.UserAuth;
+import me.metrofico.logincub.objects.UserInLogin;
+import me.metrofico.logincub.objects.UserManager;
 import net.md_5.bungee.api.connection.Connection;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.event.ChatEvent;
@@ -22,17 +23,15 @@ public class onChatPlayer implements Listener {
         Connection connection = event.getSender();
         if (connection instanceof ProxiedPlayer) {
             ProxiedPlayer player = (ProxiedPlayer) connection;
-            UserAuth userAuth = UserAuth.getUser(player.getName());
+            UserInLogin userAuth = UserManager.getUserNotAuthenticated(player.getName());
             if (userAuth != null) {
-                if (!userAuth.isLogged()) {
-                    String message = event.getMessage().trim();
-                    if (!message.isEmpty()) {
-                        String command = message.split(" ")[0];
-                        if (plugin.matchCommandAllowed(command.toLowerCase())) {
-                            return;
-                        }
-                        event.setCancelled(true);
+                String message = event.getMessage().trim();
+                if (!message.isEmpty()) {
+                    String command = message.split(" ")[0];
+                    if (plugin.matchCommandAllowed(command.toLowerCase())) {
+                        return;
                     }
+                    event.setCancelled(true);
                 }
             }
         }

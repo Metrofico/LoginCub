@@ -7,7 +7,8 @@ import me.metrofico.logincub.MojangAPI;
 import me.metrofico.logincub.Utils;
 import me.metrofico.logincub.callbacks.SingleCallback;
 import me.metrofico.logincub.eventos.PlayerCrackedLogged;
-import me.metrofico.logincub.objects.UserAuth;
+import me.metrofico.logincub.objects.UserInLogin;
+import me.metrofico.logincub.objects.UserManager;
 import net.md_5.bungee.BungeeCord;
 import net.md_5.bungee.api.CommandSender;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
@@ -30,8 +31,8 @@ public class RegisterCommand extends Command {
     public void execute(CommandSender commandSender, String[] strings) {
         if (commandSender instanceof ProxiedPlayer) {
             ProxiedPlayer player = (ProxiedPlayer) commandSender;
-            UserAuth userAuth = UserAuth.getUser(player.getName());
-            if (!userAuth.isLogged()) {
+            UserInLogin userAuth = UserManager.getUserNotAuthenticated(player.getName());
+            if (userAuth != null && !userAuth.isLogged()) {
                 if (userAuth.getPasswordHashed() == null) {
                     if (strings.length < 2) {
                         userAuth.sendMessage(plugin.getLanguage().getRegisterUsage());
@@ -52,12 +53,15 @@ public class RegisterCommand extends Command {
                         return;
                     }
                     userAuth.setPasswordHashed(Cryptography.sha512(password));
+                    UUID uuid = userAuth.getUuid();
                     if (userAuth.getStatus() == MojangAPI.Account.PREMIUM) {
                         userAuth.setWait(true);
-                        plugin.getPlayerDatabase().saveOnlinePlayer(userAuth.getObjectId(), userAuth.getUserName(), userAuth.getUuid(), password,
+                        plugin.getPlayerDatabase().saveOnlinePlayer(userAuth.getObjectIdHex(),
+                                userAuth.getUserName(), uuid, password,
                                 callSuccess(userAuth));
                     } else {
-                        plugin.getPlayerDatabase().saveOfflinePlayer(userAuth.getObjectId(), userAuth.getUserName(), userAuth.getUuid(),
+                        plugin.getPlayerDatabase().saveOfflinePlayer(userAuth.getObjectIdHex(),
+                                userAuth.getUserName(), uuid,
                                 password, callSuccess(userAuth));
                     }
                 }
@@ -84,27 +88,29 @@ public class RegisterCommand extends Command {
         }
     }
 
-    public SingleCallback callSuccess(UserAuth userAuth) {
-        userAuth.setWait(true);
+    public SingleCallback callSuccess(UserInLogin userInLogin) {
+        userInLogin.setWait(true);
         return new SingleCallback() {
             @Override
             public void onSuccess() {
-                userAuth.setLogged(true);
-                userAuth.sendMessage(plugin.getLanguage().getSignupSuccessful());
-                ProxiedPlayer proxiedPlayer = userAuth.getPlayer();
+                userInLogin.setLogged(true);
+                userInLogin.sendMessage(plugin.getLanguage().getSignupSuccessful());
+                ProxiedPlayer proxiedPlayer = userInLogin.getPlayer();
                 if (proxiedPlayer != null) {
-                    PlayerCrackedLogged logged = new PlayerCrackedLogged(userAuth, proxiedPlayer, true);
+                    UserManager.setUserAuthenticated(proxiedPlayer.getName(), userInLogin);
+                    UserManager.removeUserNotAuthenticated(proxiedPlayer.getName());
+                    PlayerCrackedLogged logged = new PlayerCrackedLogged(userInLogin, proxiedPlayer, true,
+                            (playerCrackedLogged, throwable) -> proxiedPlayer.connect(plugin.getProxy().getServerInfo("lobby")));
                     BungeeCord.getInstance().getPluginManager().callEvent(logged);
-                    proxiedPlayer.connect(plugin.getProxy().getServerInfo("lobby"));
                 }
-                userAuth.setWait(false);
+                userInLogin.setWait(false);
             }
 
             @Override
             public void onError(Throwable throwable) {
-                userAuth.kick("&cHa ocurrido un error [0x0002] contacta con un administrador");
-                userAuth.sendMessage("Ha ocurrido un error mientras se registraba tu cuenta");
-                userAuth.setWait(false);
+                userInLogin.kick("&cHa ocurrido un error [0x0002] contacta con un administrador");
+                userInLogin.sendMessage("Ha ocurrido un error mientras se registraba tu cuenta");
+                userInLogin.setWait(false);
             }
         };
     }

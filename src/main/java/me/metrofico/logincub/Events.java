@@ -9,13 +9,13 @@ import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.event.EventHandler;
 import net.md_5.bungee.event.EventPriority;
 
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 public class Events implements Listener {
 
     private final Init plugin;
-    private final ExecutorService service;
+    private final ScheduledExecutorService service;
 
     Events(Init plugin) {
         this.plugin = plugin;

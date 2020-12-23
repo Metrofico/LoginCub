@@ -3,7 +3,9 @@ package me.metrofico.logincub.commands;
 import me.metrofico.logincub.Init;
 import me.metrofico.logincub.MojangAPI;
 import me.metrofico.logincub.Utils;
-import me.metrofico.logincub.objects.UserAuth;
+import me.metrofico.logincub.objects.UserInLogin;
+import me.metrofico.logincub.objects.UserManager;
+import me.metrofico.logincub.objects.UserPremiumValidate;
 import net.md_5.bungee.api.CommandSender;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Command;
@@ -26,19 +28,19 @@ public class PremiumCommand extends Command {
     public void execute(CommandSender commandSender, String[] strings) {
         if (commandSender instanceof ProxiedPlayer) {
             ProxiedPlayer player = (ProxiedPlayer) commandSender;
-            UserAuth userAuth = UserAuth.getUser(player.getName());
-            if (userAuth.isLogged()) {
+            UserInLogin userAuth = UserManager.getUserAuthenticated(player.getName());
+            if (userAuth != null && userAuth.isLogged()) {
                 if (userAuth.getStatus() != MojangAPI.Account.PREMIUM) {
-                    if (userAuth.isAuthDownloading()) {
+                    if (userAuth.isDownloadingPremium()) {
                         commandSender.sendMessage(Utils.chatColor("&cEstamos verificando tu cuenta espera un momento..."));
                         return;
                     }
                     commandSender.sendMessage(Utils.chatColor("&aVálidando tu cuenta por favor espera..."));
-                    userAuth.setAuthDownloading(true);
+                    userAuth.setDownloadingPremium(true);
                     service.submit(() -> {
                         try {
                             MojangAPI.FetchAccount account = plugin.getMojangAPI().fetchUUID(player.getName());
-                            userAuth.setAuthDownloading(false);
+                            userAuth.setDownloadingPremium(false);
                             if (account.getStatus() == MojangAPI.Account.RATE_LIMIT) {
                                 commandSender.sendMessage(Utils.chatColor("&cNo podemos contactarnos con los servidores, intenta nuevamente más tarde!"));
                                 return;
@@ -59,9 +61,9 @@ public class PremiumCommand extends Command {
                             }
                             userAuth.setStatus(MojangAPI.Account.PREMIUM);
                             plugin.getPlayerDatabase().updateOnlineUuid(player.getName(), uuid.toString(), true);
-                            UserAuth.removeUser(player.getName());
                             player.disconnect(Utils.chatColor("&6Hemos válidado la información de tu cuenta premium \n&6Ingresa a la network y escribe &b/premium login enable \n&6Para solicitar activar la cuenta premium"));
                         } catch (Throwable w) {
+                            userAuth.setDownloadingPremium(false);
                             commandSender.sendMessage(Utils.chatColor("&cNo se pudo válidar tu cuenta premium por un error desconocido"));
                             w.printStackTrace();
                         }
@@ -77,36 +79,55 @@ public class PremiumCommand extends Command {
                     String enableDisable = strings[1];
                     switch (enableDisable.toLowerCase()) {
                         case "enable": {
-                            if (userAuth.isLoginPremium()) {
+                            if (userAuth.isEnableLoginPremium()) {
+                                userAuth.sendMessage("&eYa tienes habilitado el modo &aPREMIUM");
                                 return;
                             }
                             userAuth.sendMessage(plugin.getLanguage().getAlertEnablePremium(), "{time}", "" + plugin.getObjectSettings().getTimeOutConfirmPremium());
-                            if (userAuth.timeOutPremiumActive()) {
-                                userAuth.setTimeoutPremiumEnable(plugin.getObjectSettings().getTimeOutConfirmPremium());
+                            UserPremiumValidate validate = UserManager.getPremiumValidate(player.getName());
+                            if (validate == null) {
+                                validate = new UserPremiumValidate(0, 0);
                             }
+                            if (validate.isFinishedPremiumAnswer()) {
+                                validate.setTimeoutPremiumEnable(plugin.getObjectSettings().getTimeOutConfirmPremium());
+                            }
+                            UserManager.setPremiumValidate(player.getName(), validate);
                             break;
                         }
                         case "disable": {
-                            if (!userAuth.isLoginPremium()) {
+                            if (!userAuth.isEnableLoginPremium()) {
+                                userAuth.sendMessage("&cYa tienes desabilitado el modo &bPREMIUM");
                                 return;
                             }
                             userAuth.sendMessage(plugin.getLanguage().getAlertDisablePremium(), "{time}", "" + plugin.getObjectSettings().getTimeOutConfirmPremium());
-                            if (userAuth.timeOutPremiumActive()) {
-                                userAuth.setTimeoutPremiumEnable(plugin.getObjectSettings().getTimeOutConfirmPremium());
+                            UserPremiumValidate validate = UserManager.getPremiumValidate(player.getName());
+                            if (validate == null) {
+                                validate = new UserPremiumValidate(0, 0);
                             }
+                            if (validate.isFinishedPremiumAnswer()) {
+                                validate.setTimeoutPremiumEnable(plugin.getObjectSettings().getTimeOutConfirmPremium());
+                            }
+                            UserManager.setPremiumValidate(player.getName(), validate);
                             break;
                         }
                         case "yes": {
-                            if (userAuth.timeOutPremiumActive()) {
+                            UserPremiumValidate validate = UserManager.getPremiumValidate(player.getName());
+                            if (validate == null) {
+                                validate = new UserPremiumValidate(0, 0);
+                            }
+                            if (validate.isFinishedPremiumAnswer()) {
+                                userAuth.sendMessage("&eNo tienes pendiente ningun comando de &aENABLE o &cDISABLE");
                                 return;
                             }
-                            if (userAuth.isLoginPremium()) {
+                            if (userAuth.isEnableLoginPremium()) {
+                                UUID uuid = userAuth.getUuid();
                                 userAuth.sendMessage(plugin.getLanguage().getYesDisablePremium());
-                                plugin.getPlayerDatabase().updatePremiumMode(player.getName(), userAuth.getUuid(), false);
+                                plugin.getPlayerDatabase().updatePremiumMode(player.getName(), uuid, false);
                                 return;
                             }
                             userAuth.sendMessage(plugin.getLanguage().getYesEnablePremium(), "{time}", "" + plugin.getObjectSettings().getTimeOutJoinPremium());
-                            userAuth.setTimeoutJoinPremium(plugin.getObjectSettings().getTimeOutJoinPremium());
+                            validate.setTimeoutJoinPremium(plugin.getObjectSettings().getTimeOutJoinPremium());
+                            UserManager.setPremiumValidate(player.getName(), validate);
                             break;
                         }
                     }

@@ -1,9 +1,8 @@
 package me.metrofico.logincub.controllers;
 
 import me.metrofico.logincub.Init;
-import me.metrofico.logincub.objects.UserAuth;
-
-import java.util.Iterator;
+import me.metrofico.logincub.objects.UserInLogin;
+import me.metrofico.logincub.objects.UserManager;
 
 public class AuthCheck implements Runnable {
 
@@ -15,12 +14,9 @@ public class AuthCheck implements Runnable {
 
     @Override
     public void run() {
-        Iterator<UserAuth> userIterator = UserAuth.getUsersNotLogged();
-        while (userIterator.hasNext()) {
-            UserAuth user = userIterator.next();
-            if (user.timeOut()) {
+        for (UserInLogin user : UserManager.getUsersNotLogged()) {
+            if (user.timeOutAuthentication()) {
                 user.disconnect(plugin.getLanguage().getTimeOut());
-                UserAuth.removeUser(user.getUserName());
                 continue;
             }
             if (user.getPasswordHashed() == null) {

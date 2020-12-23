@@ -1,15 +1,17 @@
 package me.metrofico.logincub.eventos;
 
-import me.metrofico.logincub.objects.UserAuth;
+import me.metrofico.logincub.objects.UserInLogin;
+import net.md_5.bungee.api.Callback;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
-import net.md_5.bungee.api.plugin.Event;
+import net.md_5.bungee.api.event.AsyncEvent;
 
-public class PlayerCrackedLogged extends Event {
-    private final UserAuth userAuth;
+public class PlayerCrackedLogged extends AsyncEvent<PlayerCrackedLogged> {
+    private final UserInLogin userAuth;
     private final ProxiedPlayer connection;
     private boolean isNewUser;
 
-    public PlayerCrackedLogged(UserAuth userAuth, ProxiedPlayer connection, boolean isNewUser) {
+    public PlayerCrackedLogged(UserInLogin userAuth, ProxiedPlayer connection, boolean isNewUser, Callback<PlayerCrackedLogged> done) {
+        super(done);
         this.userAuth = userAuth;
         this.isNewUser = isNewUser;
         this.connection = connection;
@@ -28,7 +30,7 @@ public class PlayerCrackedLogged extends Event {
         isNewUser = newUser;
     }
 
-    public UserAuth getUserAuth() {
+    public UserInLogin getUserAuth() {
         return userAuth;
     }
 

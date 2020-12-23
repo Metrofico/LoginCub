@@ -4,9 +4,12 @@ import com.google.common.base.Charsets;
 import me.metrofico.logincub.BungeeUUID;
 import me.metrofico.logincub.Init;
 import me.metrofico.logincub.MojangAPI;
-import me.metrofico.logincub.eventos.PlayerAuthentication;
-import me.metrofico.logincub.objects.UserAuth;
-import net.md_5.bungee.BungeeCord;
+import me.metrofico.logincub.eventos.PlayerAuthenticationEvent;
+import me.metrofico.logincub.objects.UserInLogin;
+import me.metrofico.logincub.objects.UserManager;
+import me.metrofico.logincub.objects.UserPremiumValidate;
+import me.metrofico.logincub.objects.UserUUID;
+import net.md_5.bungee.api.Callback;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.connection.PendingConnection;
@@ -26,11 +29,18 @@ public class AsyncPreLoginEvent implements Runnable {
     }
 
     private void dispatchCancelUser(String razon) {
-        event.setCancelled(true);
-        if (razon == null) {
-            razon = "";
+        try {
+            event.setCancelled(true);
+            if (razon == null) {
+                razon = "";
+            }
+            event.setCancelReason(new ComponentBuilder(ChatColor.translateAlternateColorCodes('&', razon)).create());
+            event.completeIntent(plugin);
+            return;
+        } catch (Throwable w) {
+            w.printStackTrace();
         }
-        event.setCancelReason(new ComponentBuilder(ChatColor.translateAlternateColorCodes('&', razon)).create());
+        event.setCancelled(true);
         event.completeIntent(plugin);
     }
 
@@ -51,12 +61,6 @@ public class AsyncPreLoginEvent implements Runnable {
                             " contacta con un administrador");
                     return;
                 }
-                /*if (!loginPremium) {
-                    if (!username.equals(savedPlayerName)) {
-                        dispatchCancelUser("&cHas entrado con un usuario diferente a &6" + savedPlayerName);
-                        return;
-                    }
-                }*/
                 String password = playerByUsername.containsKey("password") ? playerByUsername.getString("password") : null;
                 MojangAPI.Account status;
                 String uuid;
@@ -73,33 +77,40 @@ public class AsyncPreLoginEvent implements Runnable {
                     uuid = playerByUsername.getString("offlineUid");
                     status = MojangAPI.Account.CRACKED;
                 }
-                UUID uidParser = BungeeUUID.getUUIDfromString(uuid);
-                //Usuario con login premium activado/desactivado
-                user_pending.setUniqueId(uidParser);
-                UserAuth userAuth = UserAuth.getUser(username);
-                if (userAuth == null) {
-                    userAuth = new UserAuth(username, uidParser, offlineUuid, onlineUuid, status, _id);
-                }
-                if (!userAuth.isFinishedPremiumValidate()) {
-                    loginPremium = true;
-                }
-                if (!loginPremium) {
-                    userAuth.setTimeOut(plugin.getObjectSettings().getTimeOutAuth());
-                }
-                user_pending.setOnlineMode(loginPremium);
-                userAuth.setLogged(false);
-                userAuth.setLoginPremium(loginPremium);
-                userAuth.setPasswordHashed(password);
-                UserAuth.updateUser(user_pending.getName(), userAuth);
-                PlayerAuthentication playerAuthentication = new PlayerAuthentication(userAuth,
-                        user_pending, false); // se ejecuta sincrono
-                BungeeCord.getInstance().getPluginManager().callEvent(playerAuthentication);
-                String kickReason = playerAuthentication.getKickReason();
-                if (kickReason != null) {
-                    dispatchCancelUser(kickReason);
+                if (uuid == null) {
+                    dispatchCancelUser("0x0006: No se a asignado una UUID, contacta con un Administrador");
                     return;
                 }
-                event.completeIntent(plugin);
+                UUID uidParser = BungeeUUID.getUUIDfromString(uuid);
+
+                // en caso de que esté en memoria al usar /premium login enable
+                UserInLogin userInLogin = UserManager.getUserAuthenticated(username);
+                if (userInLogin == null) {
+                    UserUUID userUid = new UserUUID(uidParser, offlineUuid, onlineUuid);
+                    userInLogin = new UserInLogin(username, userUid, status, _id);
+                }
+                /*
+                    Verificar si el usuario está usando el (/premium login enable) (con un timeOut)
+                 */
+                UserPremiumValidate validatePremium = UserManager.getPremiumValidate(username);
+                if (validatePremium != null) {
+                    if (!validatePremium.isFinishedPremiumValidate()) {
+                        loginPremium = true;
+                    } else {
+                        UserManager.removePremiumValidate(username);
+                    }
+                }
+                if (!loginPremium) {
+                    //* El usuario no es premium estableciendole el tiempo de finalización
+                    userInLogin.setTimeOnFinishOut(plugin.getObjectSettings().getTimeOutAuth());
+                }
+                user_pending.setOnlineMode(loginPremium);
+                //Usuario con login premium activado/desactivado
+                user_pending.setUniqueId(uidParser);
+                userInLogin.setEnableLoginPremium(loginPremium);
+                userInLogin.setLogged(false);
+                userInLogin.setPasswordHashed(password);
+                asyncAuthentication(userInLogin, user_pending, false);
                 return;
             }
         /*
@@ -126,7 +137,7 @@ public class AsyncPreLoginEvent implements Runnable {
             }
             //Verificar si el usuario esta en la base de datos
             if (uuid == null) {
-                dispatchCancelUser("Error Inesperado, contacta con un Administrador de Minecub");
+                dispatchCancelUser("0x0006: No se pudo encontrar tu UUID en los servidores de Mojang, contacta con un Administrador");
                 return;
             }
             Document player = plugin.getPlayerDatabase().getPlayer(uuid);
@@ -140,55 +151,57 @@ public class AsyncPreLoginEvent implements Runnable {
                 String password = player.containsKey("password") ? player.getString("password") : null;
                 //POSIBLE cambio de username
                 String usernameFromDatabase = player.getString("playerName");
-                if (!usernameFromDatabase.equals(username)) {
+                if (!usernameFromDatabase.equalsIgnoreCase(username)) {
                     plugin.getPlayerDatabase().updatePlayerNameFromUUID(uuid, username);
                 }
                 //Usuario con login premium activado/desactivado
-                UserAuth userAuth = UserAuth.getUser(user_pending.getName());
-                if (userAuth == null) {
-                    userAuth = new UserAuth(username, uuid, uuid, onlineUuid, account.getStatus(), uid);
-                }
-                if (userAuth.isFinishedPremiumValidate()) {
-                    loginPremium = true;
+                UserInLogin userInLogin = UserManager.getUserNotAuthenticated(user_pending.getName());
+                if (userInLogin == null) {
+                    UserUUID userUUID = new UserUUID(uuid, uuid, onlineUuid);
+                    userInLogin = new UserInLogin(username, userUUID, account.getStatus(), uid);
                 }
                 if (!loginPremium) {
-                    userAuth.setTimeOut(plugin.getObjectSettings().getTimeOutAuth());
+                    userInLogin.setTimeOnFinishOut(plugin.getObjectSettings().getTimeOutAuth());
                 }
                 user_pending.setOnlineMode(loginPremium);
                 user_pending.setUniqueId(uuid);
-                userAuth.setLogged(false);
-                userAuth.setLoginPremium(loginPremium);
-                userAuth.setPasswordHashed(password);
-                UserAuth.updateUser(user_pending.getName(), userAuth);
-                PlayerAuthentication playerAuthentication = new PlayerAuthentication(userAuth, user_pending, false); // se ejecuta sincrono
-                BungeeCord.getInstance().getPluginManager().callEvent(playerAuthentication);
-                String kickReason = playerAuthentication.getKickReason();
-                if (kickReason != null) {
-                    dispatchCancelUser(kickReason);
-                    return;
-                }
-                event.completeIntent(plugin);
+                userInLogin.setEnableLoginPremium(loginPremium);
+                userInLogin.setPasswordHashed(password);
+                userInLogin.setLogged(false);
+                asyncAuthentication(userInLogin, user_pending, false);
                 return;
             }
             //no existe
-            user_pending.setUniqueId(uuid);
             user_pending.setOnlineMode(false);
-            UserAuth user = new UserAuth(username, uuid, offlineUuid, onlineUuid, account.getStatus(), new ObjectId().toHexString());
-            user.setTimeOut(plugin.getObjectSettings().getTimeOutAuth());
-            user.setLogged(false);
-            UserAuth.updateUser(user_pending.getName(), user);
-            PlayerAuthentication playerAuthentication = new PlayerAuthentication(user, user_pending, true); // se ejecuta sincrono
-            BungeeCord.getInstance().getPluginManager().callEvent(playerAuthentication);
-            String kickReason = playerAuthentication.getKickReason();
-            if (kickReason != null) {
-                dispatchCancelUser(kickReason);
-                return;
-            }
-            event.completeIntent(plugin);
+            user_pending.setUniqueId(uuid);
+            UserUUID userUuid = new UserUUID(uuid, offlineUuid, onlineUuid);
+            UserInLogin userInLogin = new UserInLogin(username, userUuid, account.getStatus(), new ObjectId().toHexString());
+            userInLogin.setTimeOnFinishOut(plugin.getObjectSettings().getTimeOutAuth());
+            asyncAuthentication(userInLogin, user_pending, true);
         } catch (Throwable w) {
             dispatchCancelUser("Error mientras se cargaban tus datos contacta con un Administrador de MineCub");
             //event.completeIntent(plugin);
             w.printStackTrace();
         }
+    }
+
+    public void asyncAuthentication(UserInLogin userInLogin, PendingConnection user_pending, boolean isNewUser) {
+        PlayerAuthenticationEvent pAuthentication = new PlayerAuthenticationEvent(userInLogin, user_pending, isNewUser
+                , new Callback<PlayerAuthenticationEvent>() {
+            @Override
+            public void done(PlayerAuthenticationEvent doneEvent, Throwable throwable) {
+                UserManager.addUserNotAuthenticated(user_pending.getName(), doneEvent.getUserInLogin());
+                String kickReason = null;
+                if (doneEvent.getKickReason() != null) {
+                    kickReason = doneEvent.getKickReason();
+                }
+                if (kickReason != null) {
+                    dispatchCancelUser(kickReason);
+                    return;
+                }
+                event.completeIntent(plugin);
+            }
+        });
+        plugin.getProxy().getPluginManager().callEvent(pAuthentication);
     }
 }

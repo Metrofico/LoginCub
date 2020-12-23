@@ -2,7 +2,8 @@ package me.metrofico.logincub.commands;
 
 import me.metrofico.logincub.Init;
 import me.metrofico.logincub.eventos.PlayerCrackedLogged;
-import me.metrofico.logincub.objects.UserAuth;
+import me.metrofico.logincub.objects.UserInLogin;
+import me.metrofico.logincub.objects.UserManager;
 import net.md_5.bungee.BungeeCord;
 import net.md_5.bungee.api.CommandSender;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
@@ -20,23 +21,25 @@ public class LoginCommand extends Command {
     public void execute(CommandSender commandSender, String[] strings) {
         if (commandSender instanceof ProxiedPlayer) {
             ProxiedPlayer player = (ProxiedPlayer) commandSender;
-            UserAuth userAuth = UserAuth.getUser(player.getName());
-            if (!userAuth.isLogged()) {
-                if (userAuth.getPasswordHashed() != null) {
-                    if (!userAuth.isLoginPremium()) {
+            UserInLogin userInLogin = UserManager.getUserNotAuthenticated(player.getName());
+            if (userInLogin != null && !userInLogin.isLogged()) {
+                if (userInLogin.getPasswordHashed() != null) {
+                    if (!userInLogin.isEnableLoginPremium()) {
                         if (strings.length < 1) {
-                            userAuth.sendMessage(plugin.getLanguage().getLoginUsage());
+                            userInLogin.sendMessage(plugin.getLanguage().getLoginUsage());
                             return;
                         }
                         String password = strings[0];
-                        if (userAuth.passwordVerify(password)) {
-                            userAuth.sendMessage(plugin.getLanguage().getLoginSuccessfulPassword());
-                            PlayerCrackedLogged logged = new PlayerCrackedLogged(userAuth,
-                                    player, false);
+                        if (userInLogin.passwordVerify(password)) {
+                            userInLogin.sendMessage(plugin.getLanguage().getLoginSuccessfulPassword());
+                            UserManager.setUserAuthenticated(player.getName(), userInLogin);
+                            UserManager.removeUserNotAuthenticated(player.getName());
+                            PlayerCrackedLogged logged =
+                                    new PlayerCrackedLogged(userInLogin, player, false,
+                                            (playerCrackedLogged, throwable) -> player.connect(plugin.getProxy().getServerInfo("lobby")));
                             BungeeCord.getInstance().getPluginManager().callEvent(logged);
-                            player.connect(plugin.getProxy().getServerInfo("lobby"));
                         } else {
-                            userAuth.sendMessage(plugin.getLanguage().getPasswordFailed());
+                            userInLogin.sendMessage(plugin.getLanguage().getPasswordFailed());
                         }
                     }
                 }

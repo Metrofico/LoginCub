@@ -115,8 +115,10 @@ public class PlayerDatabase {
                 new Document("playerName", player),
                 new Document("offlineUid", suuid),
                 new Document("onlineUid", suuid)));
+        UpdateOptions options = new UpdateOptions();
+        options.collation(collationInsensitiveCase);
         UpdateResult result = users_collections.updateOne(query,
-                new Document("$set", new Document("loginPremium", active)));
+                new Document("$set", new Document("loginPremium", active)), options);
         return result.getMatchedCount() != 0;
     }
 
